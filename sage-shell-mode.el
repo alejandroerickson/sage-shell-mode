@@ -3262,28 +3262,30 @@ whose key is in KEYS."
          (var-name-including-dot
           (and bnbab (buffer-substring-no-properties
                       (car bnbab) (caddr bnbab)))))
-    (cond ((and old-int (string= old-int "sage") old-pref
-                ;; same line as the last completion
-                (or (= (line-number-at-pos (car bnbab))
-                       (line-number-at-pos old-pref))
-                    (sage-shell:clear-completion-sync-cached))
-                att-comp-p
-                (assoc-default var-name-including-dot
-                               sage-shell:completion-sync-cached))
-           (assoc-default var-name-including-dot
-                          sage-shell:completion-sync-cached))
-          (att-comp-p
-           (setq sage-shell:completion-sync-cached
-                 (cons (cons var-name-including-dot
-                             (sage-shell-cpl:candidates-sync
-                              sage-shell:completion-candidate-regexp
-                              var-name-including-dot))
-                       sage-shell:completion-sync-cached))
-           (assoc-default var-name-including-dot
-                          sage-shell:completion-sync-cached))
-          (t (sage-shell:-completion-at-pt-func-append
-              (sage-shell-cpl:candidates-sync
-               sage-shell:completion-candidate-regexp))))))
+    (sage-shell:->>
+     (cond ((and old-int (string= old-int "sage") old-pref
+                 ;; same line as the last completion
+                 (or (= (line-number-at-pos (car bnbab))
+                        (line-number-at-pos old-pref))
+                     (sage-shell:clear-completion-sync-cached))
+                 att-comp-p
+                 (assoc-default var-name-including-dot
+                                sage-shell:completion-sync-cached))
+            (assoc-default var-name-including-dot
+                           sage-shell:completion-sync-cached))
+           (att-comp-p
+            (setq sage-shell:completion-sync-cached
+                  (cons (cons var-name-including-dot
+                              (sage-shell-cpl:candidates-sync
+                               sage-shell:completion-candidate-regexp
+                               var-name-including-dot))
+                        sage-shell:completion-sync-cached))
+            (assoc-default var-name-including-dot
+                           sage-shell:completion-sync-cached))
+           (t (sage-shell:-completion-at-pt-func-append
+               (sage-shell-cpl:candidates-sync
+                sage-shell:completion-candidate-regexp))))
+     (all-completions symbol))))
 
 (defun sage-shell:-completion-at-pt-func-append (ls)
   (append
