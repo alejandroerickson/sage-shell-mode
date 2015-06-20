@@ -3144,13 +3144,28 @@ of current Sage process.")
            (concat interface "." can))
           (t can))))
 
-(defun sage-shell-cpl:candidates-sync (&optional regexp)
+(defun sage-shell-cpl:candidates-sync (&optional regexp include-base-name)
+  "When `include-base-name' is non-nil, and the point is at an attribute,
+completion candidates include the base name. If `include-base-name' is a string
+use it as the concatenation of base name and dot."
   (when (and (sage-shell-cpl:parse-and-set-state)
              (sage-shell:redirect-and-output-finished-p))
-    (let ((cur-intf (sage-shell-interfaces:current-interface)))
-      (sage-shell-cpl:candidates
-       :sexp (sage-shell-cpl:completion-init t)
-       :regexp (or regexp (sage-shell-interfaces:get cur-intf 'cmd-rxp))))))
+    (let* ((cur-intf (sage-shell-interfaces:current-interface))
+           (res (sage-shell-cpl:candidates
+                 :sexp (sage-shell-cpl:completion-init t)
+                 :regexp (or regexp
+                             (sage-shell-interfaces:get cur-intf 'cmd-rxp)))))
+      (cond ((and include-base-name
+                  (stringp include-base-name))
+             (cl-loop for att in res
+                      collect (concat include-base-name att)))
+            ((and include-base-name
+                  (sage-shell-cpl:get-current 'var-base-name))
+             (cl-loop for att in res
+                      with base-name =
+                      (sage-shell-cpl:get-current 'var-base-name)
+                      collect (concat base-name "." att)))
+            (t res)))))
 
 (defun sage-shell-cpl:trans-sexp (sexp state)
   "Trasnform SEXP so that the union of cdr is an appropriate list
