@@ -2657,12 +2657,27 @@ send current line to Sage process buffer."
   (apply 'sage-shell-cpl:set sage-shell-cpl:current-state
          attributes-values))
 
+(defvar sage-shell-cpl:unsafe-regexp
+  (rx (or "(" "%"
+          (and "." (0+ whitespace) ".")))
+  "Regexp matching unsafe Python code.")
+
 (defun sage-shell-cpl:var-base-name-and-att-start (cur-intf)
   "Returns cons of the base name of the variable and the point of
    beginig of the attribute. For example, if there is a python
    code 'abc.de' and the point is at 'd' or 'e' and 'abc' does
    not call any functions, this returns cons of a string 'abc'
    and the point at 'd', otherwise nil."
+  (sage-shell:awhen (sage-shell-cpl:-base-name-beg-att-beg cur-intf)
+    (cl-destructuring-bind (base-beg base-end att-beg) it
+      (let ((base-name (buffer-substring-no-properties base-beg base-end)))
+        (unless (or (string= base-name "")
+                    ;; when base-name does not call any functions
+                    (string-match sage-shell-cpl:unsafe-regexp base-name))
+          (cons base-name att-beg))))))
+
+(defun sage-shell-cpl:-base-name-beg-att-beg (cur-intf)
+  "Return a list (base-name-beg base-name-end att-beg)"
   (let ((bol (line-beginning-position))
         (var-chars (sage-shell-interfaces:get cur-intf 'var-chars))
         att-beg base-end)
@@ -2680,16 +2695,7 @@ send current line to Sage process buffer."
           (setq base-end (point)))
         (sage-shell:awhen (sage-shell-cpl:base-name-att-beg-rec
                            var-chars bol)
-          (let ((base-name (buffer-substring-no-properties it base-end)))
-            (unless (or (string= base-name "")
-                        ;; when base-name does not call any functions
-                        (string-match (rx (or "(" "%"
-                                              ;; There exists a possibility
-                                              ;; that base-name contains '..'.
-                                              (and "." (0+ whitespace)
-                                                   ".")))
-                                      base-name))
-              (cons base-name att-beg))))))))
+          (list it base-end att-beg))))))
 
 (defun sage-shell-cpl:base-name-att-beg-rec (var-chars bol)
   (save-excursion
@@ -3267,12 +3273,16 @@ whose key is in KEYS."
 
 
 (defun sage-shell:symbol-beg ()
-  (save-excursion
-    (let ((chars (sage-shell-interfaces:get
-                  (sage-shell-interfaces:current-interface)
-                  'var-chars)))
-      (skip-chars-backward chars))
-    (point)))
+  "Return the beginning of the symbol at point.
+This function skips over dot."
+  (sage-shell:aif (sage-shell-cpl:-base-name-beg-att-beg "sage")
+      (car it)
+    (save-excursion
+      (let ((chars (sage-shell-interfaces:get
+                    (sage-shell-interfaces:current-interface)
+                    'var-chars)))
+        (skip-chars-backward chars))
+      (point))))
 
 (defun sage-shell:pcomplete-parse-args ()
   (let ((sb (sage-shell:symbol-beg)))
