@@ -3246,36 +3246,44 @@ whose key is in KEYS."
 
 (defun sage-shell:completion-at-point-func ()
   "Used for completion-at-point. The result is cached."
-  (let ((wab (sage-shell:word-at-pt-beg)))
-    (list wab (point) (sage-shell:-completion-at-point))))
+  (list (sage-shell:symbol-beg) (point)
+        (if (fboundp 'completion-table-with-cache)
+            (completion-table-with-cache #'sage-shell:-completion-at-point)
+          (completion-table-dynamic #'sage-shell:-completion-at-point))))
 
-(defun sage-shell:-completion-at-point ()
+(defun sage-shell:-completion-at-point (symbol)
   "Return list of possible completions at point."
-  (let ((old-int (sage-shell-cpl:get-current 'interface))
-        (old-pref (sage-shell-cpl:get-current 'prefix))
-        (wab (sage-shell:word-at-pt-beg))
-        (var-name (progn
-                    (sage-shell-cpl:parse-and-set-state)
-                    (sage-shell-cpl:get-current 'var-base-name))))
-    (cond ((and
-            old-int (string= old-int "sage") old-pref
-            ;; same line as the last completion
-            (or (= (line-number-at-pos wab) (line-number-at-pos old-pref))
-                (sage-shell:clear-completion-sync-cached))
-            var-name
-            (assoc-default var-name sage-shell:completion-sync-cached))
-           (assoc-default var-name sage-shell:completion-sync-cached))
-          (t (cond
-              (var-name
-               (setq sage-shell:completion-sync-cached
-                     (cons (cons var-name
-                                 (sage-shell-cpl:candidates-sync
-                                  sage-shell:completion-candidate-regexp))
-                           sage-shell:completion-sync-cached))
-               (assoc-default var-name sage-shell:completion-sync-cached))
-              (t (sage-shell:-completion-at-pt-func-append
-                  (sage-shell-cpl:candidates-sync
-                   sage-shell:completion-candidate-regexp))))))))
+  (let* ((old-int (sage-shell-cpl:get-current 'interface))
+         (old-pref (sage-shell-cpl:get-current 'prefix))
+         (att-comp-p (progn
+                       (sage-shell-cpl:parse-and-set-state)
+                       (sage-shell-cpl:get-current 'var-base-name)))
+         (bnbab (sage-shell-cpl:-base-name-beg-att-beg "sage"))
+         (var-name-including-dot
+          (and bnbab (buffer-substring-no-properties
+                      (car bnbab) (caddr bnbab)))))
+    (cond ((and old-int (string= old-int "sage") old-pref
+                ;; same line as the last completion
+                (or (= (line-number-at-pos (car bnbab))
+                       (line-number-at-pos old-pref))
+                    (sage-shell:clear-completion-sync-cached))
+                att-comp-p
+                (assoc-default var-name-including-dot
+                               sage-shell:completion-sync-cached))
+           (assoc-default var-name-including-dot
+                          sage-shell:completion-sync-cached))
+          (att-comp-p
+           (setq sage-shell:completion-sync-cached
+                 (cons (cons var-name-including-dot
+                             (sage-shell-cpl:candidates-sync
+                              sage-shell:completion-candidate-regexp
+                              var-name-including-dot))
+                       sage-shell:completion-sync-cached))
+           (assoc-default var-name-including-dot
+                          sage-shell:completion-sync-cached))
+          (t (sage-shell:-completion-at-pt-func-append
+              (sage-shell-cpl:candidates-sync
+               sage-shell:completion-candidate-regexp))))))
 
 (defun sage-shell:-completion-at-pt-func-append (ls)
   (append
@@ -3317,10 +3325,11 @@ This function skips over dot."
   (set (make-local-variable 'pcomplete-cycle-completions) nil))
 
 (defun sage-shell:pcomplete-default-completion ()
-  (pcomplete-here
-   (all-completions
-    (buffer-substring-no-properties (sage-shell:symbol-beg) (point))
-    (sage-shell:-completion-at-point))))
+  (let ((symbol (buffer-substring-no-properties
+                 (sage-shell:symbol-beg)
+                 (point))))
+    (unless (string-match sage-shell-cpl:unsafe-regexp symbol)
+      (pcomplete-here (sage-shell:-completion-at-point symbol)))))
 
 
 ;;; sage-edit
